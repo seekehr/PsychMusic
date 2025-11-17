@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { AudioAnalyzer, AudioProperties } from './AudioProperties';
+import { Psych } from './Psych';
 
 interface AudioVisualizerProps {
   className?: string;
@@ -114,7 +115,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ className = ''
     ctx.clearRect(0, 0, width, height);
 
     // Calculate dynamic values based on audio properties
-    const baseRadius = Math.min(width, height) * 0.15;
+    const baseRadius = Math.min(width, height) * 0.25;
     const radiusMultiplier = 1 + properties.volume * 2;
     const radius = baseRadius * radiusMultiplier;
 
@@ -233,11 +234,19 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ className = ''
 
   return (
     <div className={`relative w-full h-full ${className}`}>
+      {/* Original visualization canvas (background layer) */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full bg-black"
         style={{ width: '100%', height: '100%' }}
       />
+
+      {/* Psychedelic visualization (foreground layer) */}
+      {isPlaying && (
+        <div className="absolute inset-0 w-full h-full">
+          <Psych audioProperties={audioProperties} className="w-full h-full" />
+        </div>
+      )}
 
       <audio ref={audioRef} className="hidden" />
 
@@ -271,6 +280,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ className = ''
           </button>
         )}
       </div>
+
+      {/* Footer text - only show when audio button is present */}
+      {!isPlaying && (
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+          <p className="text-gray-400 text-sm font-medium">
+            Made @ seekehr.github.io
+          </p>
+        </div>
+      )}
 
       {/* Audio properties display (for debugging) */}
       {isPlaying && (
