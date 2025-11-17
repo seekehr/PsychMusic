@@ -56,10 +56,26 @@ export const Psych: React.FC<PsychProps> = ({ audioProperties, className = '' })
         timeRef.current += 0.02;
         const time = timeRef.current;
 
-        // Create trailing effect with subtle color shifts
-        const bgHue = (time * 20 + audioProperties.frequency / 50) % 360;
-        const trailAlpha = 0.02 + audioProperties.energy * 0.03;
-        ctx.fillStyle = `hsla(${bgHue}, 40%, 5%, ${trailAlpha})`;
+        // Fill background with random changing colors
+        const bgHue1 = (time * 50 + Math.sin(time * 0.3) * 180) % 360;
+        const bgHue2 = (time * 30 + Math.cos(time * 0.5) * 120 + 180) % 360;
+        const bgHue3 = (time * 70 + Math.sin(time * 0.7) * 90 + 90) % 360;
+
+        // Create animated gradient background
+        const bgGradient = ctx.createRadialGradient(
+            centerX + Math.sin(time * 0.4) * width * 0.3,
+            centerY + Math.cos(time * 0.6) * height * 0.3,
+            0,
+            centerX, centerY,
+            Math.max(width, height) * 0.8
+        );
+
+        const bgAlpha = 0.3 + audioProperties.energy * 0.4;
+        bgGradient.addColorStop(0, `hsla(${bgHue1}, 60%, 20%, ${bgAlpha})`);
+        bgGradient.addColorStop(0.5, `hsla(${bgHue2}, 70%, 15%, ${bgAlpha * 0.7})`);
+        bgGradient.addColorStop(1, `hsla(${bgHue3}, 50%, 10%, ${bgAlpha * 0.5})`);
+
+        ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, width, height);
 
         // Psychedelic spiral patterns
