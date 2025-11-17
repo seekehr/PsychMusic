@@ -10,7 +10,7 @@
   <title>PsychMusic - By seekehr.github.io</title>
   <meta name="title" content="Psychedelic Audio Visualizer - Interactive Music Visualization Experience" />
   <meta name="description"
-    content="Experience mesmerizing psychedelic audio visualizations that react to your music in real-time. Create stunning visual effects synchronized with sound frequencies and beats." />
+    content="Experience psychedlical visuals to compliment your music. Made by seekehr.github.io" />
   <meta name="keywords"
     content="audio visualizer, psychedelic, music visualization, sound reactive, frequency analysis, interactive art, web audio API" />
   <meta name="author" content="Audio Visualizer" />
@@ -21,7 +21,7 @@
   <meta property="og:url" content="https://psychedelic-audio-visualizer.com/" />
   <meta property="og:title" content="PsychMusic - By seekehr.github.io" />
   <meta property="og:description"
-    content="Experience mesmerizing psychedelic audio visualizations that react to your music in real-time. Create stunning visual effects synchronized with sound frequencies." />
+    content="Experience psychedlical visuals to compliment your music. Made by seekehr.github.io" />
   <meta property="og:image" content="https://psychedelic-audio-visualizer.com/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -32,7 +32,7 @@
   <meta property="twitter:url" content="https://psychedelic-audio-visualizer.com/" />
   <meta property="twitter:title" content="PsychMusic - By seekehr.github.io" />
   <meta property="twitter:description"
-    content="Experience mesmerizing psychedelic audio visualizations that react to your music in real-time." />
+    content="Experience psychedlical visuals to compliment your music. Made by seekehr.github.io" />
   <meta property="twitter:image" content="https://psychedelic-audio-visualizer.com/og-image.jpg" />
 
   <!-- Additional SEO Meta Tags -->
@@ -47,7 +47,7 @@
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "Psychedelic Audio Visualizer",
-      "description": "Interactive psychedelic audio visualization experience that creates stunning visual effects synchronized with music and sound frequencies",
+      "description": "Experience psychedlical visuals to compliment your music. Made by seekehr.github.io",
       "url": "https://psychedelic-audio-visualizer.com/",
       "applicationCategory": "MultimediaApplication",
       "operatingSystem": "Web Browser",
@@ -66,10 +66,37 @@
   <!-- Preconnect to external domains for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  
+  <!-- Author and project links for SEO -->
+  <link rel="author" href="https://github.com/seekehr" />
+  <link rel="canonical" href="https://seekehr.github.io" />
 </head>""
 
 <body>
   <div id="root"></div>
+  
+  <!-- Hidden SEO backlinks -->
+  <div style="position: absolute; left: -9999px; top: -9999px; visibility: hidden;">
+    <a href="https://seekehr.github.io" rel="author">Developer Portfolio - seekehr</a>
+    <a href="https://github.com/seekehr/PsychMusic" rel="external">PsychMusic Audio Visualizer Repository</a>
+    <a href="https://github.com/seekehr" rel="author external">seekehr GitHub Profile</a>
+    <a href="https://seekehr.github.io" rel="author external">seekehr Portfolio Website</a>
+    <a href="https://github.com/seekehr/PsychMusic" rel="external">Psychedelic Music Visualizer Source Code</a>
+    <a href="https://github.com/seekehr" rel="author external">Open Source Projects by seekehr</a>
+  </div>
+  
+  <!-- Footer with visible backlinks -->
+  <footer style="position: fixed; bottom: 10px; right: 10px; z-index: 1000; font-family: Arial, sans-serif; font-size: 12px; opacity: 0.7;">
+    <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 15px;">
+      <span style="color: white;">Created by</span>
+      <a href="https://github.com/seekehr" target="_blank" rel="author external noopener" style="color: #58a6ff; text-decoration: none;">seekehr</a>
+      <span style="color: #666;">|</span>
+      <a href="https://github.com/seekehr/PsychMusic" target="_blank" rel="external noopener" style="color: #58a6ff; text-decoration: none;">Source</a>
+      <span style="color: #666;">|</span>
+      <a href="https://seekehr.github.io" target="_blank" rel="author external noopener" style="color: #58a6ff; text-decoration: none;">Portfolio</a>
+    </div>
+  </footer>
+  
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

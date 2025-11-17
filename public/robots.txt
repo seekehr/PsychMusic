@@ -1,0 +1,32 @@
+User-agent: *
+Allow: /
+
+# Allow all search engines to crawl the entire site
+# This is appropriate for a public audio visualizer application
+
+# Sitemap location (update with your actual domain)
+Sitemap: https://psychedelic-audio-visualizer.com/sitemap.xml
+
+# Crawl delay (optional - helps prevent overwhelming your server)
+Crawl-delay: 1
+
+# Block access to source maps and development files
+Disallow: /*.map$
+Disallow: /src/
+Disallow: /.vite/
+Disallow: /node_modules/
+
+# Allow access to assets and static files
+Allow: /assets/
+Allow: /images/
+Allow: /fonts/
+Allow: *.css
+Allow: *.js
+Allow: *.png
+Allow: *.jpg
+Allow: *.jpeg
+Allow: *.gif
+Allow: *.svg
+Allow: *.ico
+Allow: *.woff
+Allow: *.woff2
