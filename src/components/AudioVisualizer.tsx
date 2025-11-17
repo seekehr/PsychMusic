@@ -1,433 +1,288 @@
-import { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { useAudioInformation, type AudioInfo } from './AudioInformation';
-import ChromeSphere from './ChromeSphere';
+import { AudioAnalyzer, AudioProperties } from './AudioProperties';
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  size: number;
-  hue: number;
-  alpha: number;
-  life: number;
-  maxLife: number;
-  type: 'circle' | 'square' | 'triangle';
-  scale: number;
-  scaleVel: number;
-  rotation: number;
-  rotationVel: number;
-  saturation: number;
-  lightness: number;
+interface AudioVisualizerProps {
+  className?: string;
 }
 
-export default function AudioVisualizer() {
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioInfo, setAudioInfo] = useState<AudioInfo>({
-    bpm: 120,
-    bass: 0,
-    mid: 0,
-    treble: 0,
-    volume: 0,
-    frequencyData: new Uint8Array(0)
-  });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ className = '' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const particlesRef = useRef<Particle[]>([]);
-  const animationFrameRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const animationRef = useRef<number>();
+  const analyzerRef = useRef<AudioAnalyzer>();
 
-  const { analyzeAudio, reset: resetAudioInfo } = useAudioInformation();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioProperties, setAudioProperties] = useState<AudioProperties>({
+    bpm: 0,
+    volume: 0,
+    frequency: 0,
+    bassLevel: 0,
+    midLevel: 0,
+    trebleLevel: 0,
+    energy: 0
+  });
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && (file.type === 'audio/mpeg' || file.type === 'audio/wav')) {
-      const audio = new Audio();
-      audio.src = URL.createObjectURL(file);
+    if (file && (file.type === 'audio/mp3' || file.type === 'audio/wav' || file.type === 'audio/mpeg')) {
+      setAudioFile(file);
 
-      audio.addEventListener('loadedmetadata', () => {
-        if (audio.duration > 10) {
-          setAudioFile(file);
-          playAudio(file);
-        } else {
-          alert('Please select an audio file longer than 10 seconds');
+      if (audioRef.current) {
+        const url = URL.createObjectURL(file);
+        audioRef.current.src = url;
+        audioRef.current.load();
+      }
+    }
+  }, []);
+
+  const startVisualization = useCallback(async () => {
+    if (!audioRef.current || !audioFile) return;
+
+    try {
+      analyzerRef.current = new AudioAnalyzer();
+      await analyzerRef.current.initialize(audioRef.current);
+
+      audioRef.current.play();
+      setIsPlaying(true);
+
+      // Start animation loop
+      const animate = () => {
+        if (analyzerRef.current) {
+          const properties = analyzerRef.current.getAudioProperties();
+          setAudioProperties(properties);
+          drawVisualization(properties);
         }
-      });
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      animate();
+    } catch (error) {
+      console.error('Error starting visualization:', error);
     }
-  };
+  }, [audioFile]);
 
-  const playAudio = (file: File) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
+  // Auto-play when file is selected
+  useEffect(() => {
+    if (audioFile && audioRef.current) {
+      audioRef.current.onloadeddata = () => {
+        startVisualization();
+      };
     }
+  }, [audioFile, startVisualization]);
 
-    const audio = new Audio(URL.createObjectURL(file));
-    audioRef.current = audio;
-
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    audioContextRef.current = audioContext;
-
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
-    analyserRef.current = analyser;
-
-    const source = audioContext.createMediaElementSource(audio);
-    source.connect(analyser);
-    analyser.connect(audioContext.destination);
-
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    dataArrayRef.current = dataArray;
-
-    audio.play();
-    setIsPlaying(true);
-    startVisualization();
-
-    audio.addEventListener('ended', handleStop);
-  };
-
-  const handleStop = () => {
-    cancelAnimationFrame(animationFrameRef.current);
-    particlesRef.current = [];
-
-    // Reset audio information
-    resetAudioInfo();
-    setAudioInfo({
-      bpm: 120,
-      bass: 0,
-      mid: 0,
-      treble: 0,
-      volume: 0,
-      frequencyData: new Uint8Array(0)
-    });
-
+  const stopVisualization = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    analyserRef.current = null;
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    if (analyzerRef.current) {
+      analyzerRef.current.cleanup();
     }
 
     setIsPlaying(false);
     setAudioFile(null);
-  };
 
-  const getFrequencyColor = (bass: number, mid: number, treble: number): { hue: number; saturation: number; lightness: number } => {
-    const bassHue = 280;
-    const midHue = 120;
-    const trebleHue = 20;
-    const noiseHue = Math.random() * 360;
-
-    if (bass > 200) {
-      return {
-        hue: bassHue + (Math.random() - 0.5) * 60,
-        saturation: 100,
-        lightness: 40 + Math.random() * 30
-      };
-    }
-    if (mid > 180) {
-      return {
-        hue: midHue + (Math.random() - 0.5) * 60,
-        saturation: 90 + Math.random() * 10,
-        lightness: 45 + Math.random() * 25
-      };
-    }
-    if (treble > 160) {
-      return {
-        hue: trebleHue + (Math.random() - 0.5) * 80,
-        saturation: 85 + Math.random() * 15,
-        lightness: 50 + Math.random() * 20
-      };
-    }
-
-    return {
-      hue: noiseHue,
-      saturation: 70 + Math.random() * 30,
-      lightness: 55 + Math.random() * 20
-    };
-  };
-
-
-
-  const createParticles = (audioInfo: AudioInfo) => {
+    // Clear canvas
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const { bass, mid, treble, bpm } = audioInfo;
-
-    const maxParticles = 250;
-    const particleCount = Math.max(1, Math.floor((bass / 255) * 8) + Math.floor((mid / 255) * 5) + Math.floor((treble / 255) * 3) + 1);
-
-    // Calculate BPM-based speed multiplier (reduced by 0.3 factor)
-    const bpmSpeedMultiplier = (bpm / 120) * 0.3; // Reduced speed factor
-    const baseSpeed = (mid / 255) * 6 + 1.5; // Reduced base speed
-
-    for (let i = 0; i < particleCount; i++) {
-      const types: Array<'circle' | 'square' | 'triangle'> = ['circle', 'square', 'triangle'];
-      const type = types[Math.floor(Math.random() * types.length)];
-
-      const speed = baseSpeed * bpmSpeedMultiplier;
-      const angle = Math.random() * Math.PI * 2;
-      const { hue, saturation, lightness } = getFrequencyColor(bass, mid, treble);
-
-      const explosionForce = Math.pow(bass / 255, 0.5) * 6 * bpmSpeedMultiplier; // Reduced explosion force
-
-      const particle: Particle = {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: Math.cos(angle) * speed * (0.5 + Math.random() * 1.5) + (Math.random() - 0.5) * explosionForce,
-        vy: Math.sin(angle) * speed * (0.5 + Math.random() * 1.5) + (Math.random() - 0.5) * explosionForce,
-        size: Math.pow(bass / 255, 0.3) * Math.random() * 25 + 4,
-        hue,
-        saturation,
-        lightness,
-        alpha: 0.7 + Math.random() * 0.3,
-        life: 0,
-        maxLife: 50 + Math.random() * 80,
-        type,
-        scale: 1.1 + Math.random() * 1.2,
-        scaleVel: -0.012 - Math.random() * 0.018,
-        rotation: Math.random() * Math.PI * 2,
-        rotationVel: (Math.random() - 0.5) * 0.15 * bpmSpeedMultiplier // BPM-based rotation
-      };
-
-      particlesRef.current.push(particle);
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     }
+  }, []);
 
-    if (particlesRef.current.length > maxParticles) {
-      particlesRef.current = particlesRef.current.slice(-maxParticles);
-    }
-  };
-
-  const drawParticle = (ctx: CanvasRenderingContext2D, particle: Particle) => {
-    ctx.save();
-
-    const lifeFade = 1 - particle.life / particle.maxLife;
-    const easeOut = Math.pow(lifeFade, 2);
-    ctx.globalAlpha = particle.alpha * easeOut;
-
-    const scaledSize = particle.size * particle.scale;
-    ctx.fillStyle = `hsl(${particle.hue}, ${particle.saturation}%, ${particle.lightness}%)`;
-    ctx.strokeStyle = `hsl(${(particle.hue + 180) % 360}, ${Math.max(0, particle.saturation - 20)}%, ${Math.min(100, particle.lightness + 20)}%)`;
-    ctx.lineWidth = Math.max(1, scaledSize * 0.1);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    ctx.translate(particle.x, particle.y);
-    ctx.rotate(particle.rotation);
-
-    if (particle.type === 'circle') {
-      ctx.beginPath();
-      ctx.arc(0, 0, scaledSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = `hsla(${(particle.hue + 90) % 360}, 100%, 60%, ${0.5 * easeOut})`;
-      ctx.lineWidth = scaledSize * 0.08;
-      ctx.beginPath();
-      ctx.arc(0, 0, scaledSize * 0.6, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (particle.type === 'square') {
-      ctx.fillRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
-      ctx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
-
-      ctx.strokeStyle = `hsla(${(particle.hue + 120) % 360}, 100%, 70%, ${0.4 * easeOut})`;
-      ctx.lineWidth = scaledSize * 0.06;
-      ctx.strokeRect(-scaledSize * 0.55 / 2, -scaledSize * 0.55 / 2, scaledSize * 0.55, scaledSize * 0.55);
-    } else if (particle.type === 'triangle') {
-      ctx.beginPath();
-      ctx.moveTo(0, -scaledSize);
-      ctx.lineTo(scaledSize, scaledSize);
-      ctx.lineTo(-scaledSize, scaledSize);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = `hsla(${(particle.hue - 60) % 360}, 100%, 60%, ${0.45 * easeOut})`;
-      ctx.lineWidth = scaledSize * 0.09;
-      ctx.beginPath();
-      ctx.moveTo(0, -scaledSize * 0.5);
-      ctx.lineTo(scaledSize * 0.5, scaledSize * 0.5);
-      ctx.lineTo(-scaledSize * 0.5, scaledSize * 0.5);
-      ctx.closePath();
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  };
-
-  const startVisualization = () => {
+  const drawVisualization = useCallback((properties: AudioProperties) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const animate = () => {
-      if (!analyserRef.current || !dataArrayRef.current) return;
+    const { width, height } = canvas;
+    const centerX = width / 2;
+    const centerY = height / 2;
 
-      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-      const frequencyData = dataArrayRef.current;
+    // Clear canvas completely
+    ctx.clearRect(0, 0, width, height);
 
-      // Analyze audio using the AudioInformation component
-      const currentAudioInfo = analyzeAudio(frequencyData);
-      setAudioInfo(currentAudioInfo);
+    // Calculate dynamic values based on audio properties
+    const baseRadius = Math.min(width, height) * 0.15;
+    const radiusMultiplier = 1 + properties.volume * 2;
+    const radius = baseRadius * radiusMultiplier;
 
-      const { bass, mid, treble, bpm } = currentAudioInfo;
+    // Color based on frequency and energy
+    const hue = (properties.frequency / 1000) % 360;
+    const saturation = 70 + properties.energy * 30;
+    const lightness = 40 + properties.volume * 40;
+    const time = Date.now() * 0.001;
 
-      const trailAlpha = 0.03 + (bass / 255) * 0.08 + (treble / 255) * 0.05;
-      ctx.fillStyle = `rgba(0, 0, 5, ${trailAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Central sphere with energy-based effects and volume-based border
+    const centralRadius = radius * 0.8;
+    const centralGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, centralRadius);
+    centralGradient.addColorStop(0, `hsla(${hue}, 90%, 70%, 0.8)`);
+    centralGradient.addColorStop(0.5, `hsla(${(hue + 60) % 360}, 80%, 50%, 0.4)`);
+    centralGradient.addColorStop(1, `hsla(${(hue + 120) % 360}, 70%, 30%, 0.1)`);
 
-      if (Math.random() < 0.1) {
-        ctx.fillStyle = `rgba(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)}, 255, 0.01)`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+    ctx.fillStyle = centralGradient;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, centralRadius, 0, Math.PI * 2);
+    ctx.fill();
 
-      createParticles(currentAudioInfo);
+    // Add volume-based border to the central sphere
+    const borderWidth = 2 + properties.volume * 8;
+    const borderAlpha = 0.6 + properties.volume * 0.4;
+    ctx.strokeStyle = `hsla(${hue}, 100%, 80%, ${borderAlpha})`;
+    ctx.lineWidth = borderWidth;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, centralRadius, 0, Math.PI * 2);
+    ctx.stroke();
 
-      particlesRef.current = particlesRef.current.filter(particle => {
-        // BPM-based movement multiplier (reduced)
-        const bpmMovementMultiplier = (bpm / 120) * 0.4;
+    // Create rainbow line around the circumference with white filling
+    const numPoints = 128; // More points for smoother line
+    const circumferenceRadius = centralRadius + 20;
+    const points: { x: number; y: number; hue: number }[] = [];
 
-        particle.x += particle.vx * bpmMovementMultiplier;
-        particle.y += particle.vy * bpmMovementMultiplier;
-        particle.life++;
+    // Generate points for the rainbow line
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i / numPoints) * Math.PI * 2;
+      const volumeEffect = properties.volume * 30 + Math.sin(time * 4 + i * 0.1) * 15;
+      const pointRadius = circumferenceRadius + volumeEffect;
 
-        particle.vx *= 0.975;
-        particle.vy *= 0.975;
-        particle.vy += 0.15 * bpmMovementMultiplier; // Reduced gravity effect
+      const x = centerX + Math.cos(angle) * pointRadius;
+      const y = centerY + Math.sin(angle) * pointRadius;
+      const pointHue = (i * (360 / numPoints) + time * 30) % 360;
 
-        particle.scale += particle.scaleVel;
-        particle.scale = Math.max(0.1, particle.scale);
-        particle.rotation += particle.rotationVel * bpmMovementMultiplier;
-        particle.hue = (particle.hue + 0.5 * bpmMovementMultiplier) % 360;
-        particle.lightness = Math.min(100, particle.lightness + 0.1);
+      points.push({ x, y, hue: pointHue });
+    }
 
-        if (particle.x < -100) particle.x = canvas.width + 100;
-        if (particle.x > canvas.width + 100) particle.x = -100;
-        if (particle.y < -100) particle.y = canvas.height + 100;
-        if (particle.y > canvas.height + 100) particle.y = -100;
+    // Fill the area between the circle and the rainbow line with white
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.beginPath();
 
-        drawParticle(ctx, particle);
+    // Start from the circle edge
+    ctx.arc(centerX, centerY, centralRadius, 0, Math.PI * 2);
 
-        return particle.life < particle.maxLife;
-      });
+    // Create the outer boundary (rainbow line path)
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
 
-      const waveHeight = (bass / 255) * 100 + 50;
-      ctx.strokeStyle = `hsla(${(Date.now() / 20) % 360}, 100%, 50%, 0.3)`;
-      ctx.lineWidth = 3;
+    // Use even-odd fill rule to create the ring
+    ctx.fill('evenodd');
+
+    // Draw the rainbow line
+    ctx.lineWidth = 3 + properties.volume * 5;
+
+    for (let i = 0; i < points.length; i++) {
+      const currentPoint = points[i];
+      const nextPoint = points[(i + 1) % points.length];
+
+      // Create gradient for each line segment
+      const segmentGradient = ctx.createLinearGradient(
+        currentPoint.x, currentPoint.y,
+        nextPoint.x, nextPoint.y
+      );
+
+      const alpha = 0.8 + properties.volume * 0.2;
+      segmentGradient.addColorStop(0, `hsla(${currentPoint.hue}, 100%, 60%, ${alpha})`);
+      segmentGradient.addColorStop(1, `hsla(${nextPoint.hue}, 100%, 60%, ${alpha})`);
+
+      ctx.strokeStyle = segmentGradient;
       ctx.beginPath();
-
-      for (let i = 0; i < currentAudioInfo.frequencyData.length; i++) {
-        const x = (i / currentAudioInfo.frequencyData.length) * canvas.width;
-        const y = canvas.height - (currentAudioInfo.frequencyData[i] / 255) * waveHeight;
-
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-
+      ctx.moveTo(currentPoint.x, currentPoint.y);
+      ctx.lineTo(nextPoint.x, nextPoint.y);
       ctx.stroke();
-
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animate();
-  };
+    }
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas) {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-
-      const handleResize = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+      const resizeCanvas = () => {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
       };
 
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      return () => window.removeEventListener('resize', resizeCanvas);
     }
   }, []);
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      if (analyzerRef.current) {
+        analyzerRef.current.cleanup();
       }
-      cancelAnimationFrame(animationFrameRef.current);
     };
   }, []);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black">
+    <div className={`relative w-full h-full ${className}`}>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full bg-black"
+        style={{ width: '100%', height: '100%' }}
       />
 
-      {/* ChromeSphere with centered X button */}
-      <ChromeSphere 
-        audioInfo={audioInfo}
-        onStop={handleStop}
-        isVisible={isPlaying}
-      />
-
-      {/* File selection button when no audio is playing */}
-      {!audioFile && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="pointer-events-auto">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-8 py-4 bg-white text-black font-semibold rounded-lg shadow-lg hover:bg-gray-100 transition-all transform hover:scale-105"
-            >
-              Choose Audio
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* BPM Display */}
-      {isPlaying && (
-        <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg backdrop-blur-sm">
-          <div className="text-sm font-medium">BPM: {audioInfo.bpm}</div>
-          <div className="text-xs opacity-75">Volume: {Math.round(audioInfo.volume)}</div>
-        </div>
-      )}
+      <audio ref={audioRef} className="hidden" />
 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".mp3,.wav,audio/mpeg,audio/wav"
+        accept=".mp3,.wav,audio/*"
         onChange={handleFileSelect}
         className="hidden"
       />
+
+      <div className="absolute inset-0 flex items-center justify-center">
+        {!isPlaying ? (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-8 py-4 bg-white hover:bg-gray-100 text-black font-semibold rounded-lg shadow-lg transition-colors duration-200 z-10"
+          >
+            Choose Audio
+          </button>
+        ) : (
+          <button
+            onClick={stopVisualization}
+            className="w-16 h-16 bg-white bg-opacity-20 backdrop-blur-md border border-white border-opacity-30 hover:bg-opacity-30 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-200 z-10"
+            style={{
+              backdropFilter: 'blur(10px)',
+              background: 'rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+            }}
+          >
+            <X size={24} />
+          </button>
+        )}
+      </div>
+
+      {/* Audio properties display (for debugging) */}
+      {isPlaying && (
+        <div className="absolute top-4 left-4 text-white text-sm bg-black bg-opacity-50 p-2 rounded z-10">
+          <div>BPM: {audioProperties.bpm.toFixed(0)}</div>
+          <div>Volume: {(audioProperties.volume * 100).toFixed(1)}%</div>
+          <div>Frequency: {audioProperties.frequency.toFixed(0)}Hz</div>
+          <div>Bass: {(audioProperties.bassLevel * 100).toFixed(1)}%</div>
+          <div>Mid: {(audioProperties.midLevel * 100).toFixed(1)}%</div>
+          <div>Treble: {(audioProperties.trebleLevel * 100).toFixed(1)}%</div>
+        </div>
+      )}
     </div>
   );
-}
+};
